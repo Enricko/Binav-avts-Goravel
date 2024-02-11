@@ -24,13 +24,12 @@ func (r *ClientController) Index(ctx http.Context) http.Response {
 }
 
 func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
+	// Parse and validate the request
 	var request userRequest.RegisterUserPostRequest
 
 	errors, err := ctx.Request().ValidateRequest(&request)
 	if err != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-		})
+		return handleBadRequestError(ctx, err)
 	}
 	if errors != nil {
 		return ctx.Response().Json(http.StatusBadRequest, http.Json{
@@ -41,22 +40,25 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Password Hashing / Dcrypt
 	password, err := facades.Hash().Make(request.Password)
 	if err != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-		})
+		return handleBadRequestError(ctx, err)
 	}
 
-	// Start Creating Table
+	// Generate random user and client IDs
+	userID := extensions.GenerateRandomString(15)
+	clientID := extensions.GenerateRandomString(15)
+
+	// Create the user model
 	createUser := models.User{
-		IdUser:         extensions.GenerateRandomString(15),
+		IdUser:         userID,
 		Name:           request.Name,
 		Email:          request.Email,
 		Password:       password,
-		PasswordString: request.Name+request.Password+request.Email,
+		PasswordString: request.Name + request.Password + request.Email,
 		Level:          request.Level,
 	}
+	// Create the client model
 	createClient := models.Client{
-		IdClient: extensions.GenerateRandomString(15),
+		IdClient: clientID,
 		IdUser:   createUser.IdUser,
 		Status:   request.Status,
 	}
@@ -65,25 +67,31 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	ts, err := facades.Orm().Query().Begin()
 	if err != nil {
 		ts.Rollback()
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-		})
+		return handleBadRequestError(ctx, err)
 	}
+
+	// Create user and client in transaction
 	if err := ts.Create(&createUser); err != nil {
 		ts.Rollback()
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-		})
+		return handleBadRequestError(ctx, err)
 	}
 	if err := ts.Create(&createClient); err != nil {
 		ts.Rollback()
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-		})
+		return handleBadRequestError(ctx, err)
 	}
-
-	ts.Commit()
+	// Commit transaction
+	if err := ts.Commit(); err != nil {
+		return handleBadRequestError(ctx, err)
+	}
+	// Return success response
 	return ctx.Response().Success().Json(http.Json{
 		"Hello": "Client created successfully.",
+	})
+}
+
+// handleDBError handles database errors
+func handleBadRequestError(ctx http.Context, err error) http.Response {
+	return ctx.Response().Json(http.StatusBadRequest, http.Json{
+		"message": err.Error(),
 	})
 }
