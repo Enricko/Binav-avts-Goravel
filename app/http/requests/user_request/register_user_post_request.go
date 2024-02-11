@@ -6,11 +6,12 @@ import (
 )
 
 type RegisterUserPostRequest struct {
-	Name                 string      `form:"name" json:"name"`
-	Email                string      `form:"email" json:"email"`
-	Password             string      `form:"password" json:"password"`
-	PasswordConfirmation string      `form:"password_confirmation" json:"password_confirmation"`
-	Level                interface{} `form:"level" json:"level"`
+	Name                 string `form:"name" json:"name"`
+	Email                string `form:"email" json:"email"`
+	Password             string `form:"password" json:"password"`
+	PasswordConfirmation string `form:"password_confirmation" json:"password_confirmation"`
+	Level                string `form:"level" json:"level"`
+	Status               string `form:"status" json:"status"`
 }
 
 func (r *RegisterUserPostRequest) Authorize(ctx http.Context) error {
@@ -24,6 +25,7 @@ func (r *RegisterUserPostRequest) Rules(ctx http.Context) map[string]string {
 		"password":              "required|min_len:8|max_len:255|eq_field:password_confirmation",
 		"password_confirmation": "required|min_len:8|max_len:255|eq_field:password",
 		"level":                 "required|in:client,admin,owner",
+		"status":                "required|bool",
 	}
 }
 
