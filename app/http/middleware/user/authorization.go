@@ -11,7 +11,7 @@ func Authorization() http.Middleware {
 		header := ctx.Request().Header("Authorization", "")
 		_, err := facades.Auth().Parse(ctx, header)
 		if err != nil {
-			ctx.Request().AbortWithStatusJson(401, http.Json{
+			ctx.Request().AbortWithStatusJson(403, http.Json{
 				"message": err.Error(),
 			})
 			return

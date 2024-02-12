@@ -2,7 +2,7 @@ package controllers
 
 import (
 	extensions "goravel/app"
-	userRequest "goravel/app/http/requests/user_request"
+	"goravel/app/http/requests/user_request"
 	"goravel/app/models"
 
 	"github.com/goravel/framework/contracts/http"
@@ -25,11 +25,11 @@ func (r *ClientController) Index(ctx http.Context) http.Response {
 
 func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Parse and validate the request
-	var request userRequest.RegisterUserPostRequest
+	var request user_request.RegisterUserPostRequest
 
 	errors, err := ctx.Request().ValidateRequest(&request)
 	if err != nil {
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 	if errors != nil {
 		return ctx.Response().Json(http.StatusBadRequest, http.Json{
@@ -40,7 +40,7 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Password Hashing / Dcrypt
 	password, err := facades.Hash().Make(request.Password)
 	if err != nil {
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 
 	// Generate random user and client IDs
@@ -67,21 +67,21 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	ts, err := facades.Orm().Query().Begin()
 	if err != nil {
 		ts.Rollback()
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 
 	// Create user and client in transaction
 	if err := ts.Create(&createUser); err != nil {
 		ts.Rollback()
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 	if err := ts.Create(&createClient); err != nil {
 		ts.Rollback()
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 	// Commit transaction
 	if err := ts.Commit(); err != nil {
-		return handleBadRequestError(ctx, err)
+		return extensions.HandleBadRequestError(ctx, err)
 	}
 	// Return success response
 	return ctx.Response().Success().Json(http.Json{
@@ -89,9 +89,3 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	})
 }
 
-// handleDBError handles database errors
-func handleBadRequestError(ctx http.Context, err error) http.Response {
-	return ctx.Response().Json(http.StatusBadRequest, http.Json{
-		"message": err.Error(),
-	})
-}

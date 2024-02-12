@@ -3,6 +3,8 @@ package extensions
 import (
 	"crypto/rand"
 	"math/big"
+
+	"github.com/goravel/framework/contracts/http"
 )
 
 func GenerateRandomString(length int) string {
@@ -16,4 +18,12 @@ func GenerateRandomString(length int) string {
         result += string(charset[index.Int64()])
     }
     return result
+}
+
+// handleDBError handles database errors
+func HandleBadRequestError(ctx http.Context, err error) http.Response {
+	return ctx.Response().Json(http.StatusBadRequest, http.Json{
+		"message": err.Error(),
+		"status":http.StatusBadRequest,
+	})
 }

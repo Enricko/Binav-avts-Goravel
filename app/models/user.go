@@ -7,8 +7,8 @@ type User struct {
 	Name           string    `json:"name"`
 	Level          string    `json:"level"`
 	Email          string    `json:"email"`
-	Password       string    `json:"password"`
-	PasswordString string    `json:"password_string"`
+	Password       string    `json:"-"`
+	PasswordString string    `json:"-"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }

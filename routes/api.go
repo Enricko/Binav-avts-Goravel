@@ -6,14 +6,15 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/controllers"
-	// userMiddleware "goravel/app/http/middleware/user"
+	userMiddleware "goravel/app/http/middleware/user"
 )
 
 func Api() {
 	facades.Route().Prefix("api").Group(func(router route.Router) {
 		// ===== Users =====
 		userController := controllers.NewUserController()
-		router.Get("/users/{id}", userController.Show)
+		router.Post("/login", userController.Login)
+		router.Middleware(userMiddleware.Authorization()).Get("/user", userController.Show)
 
 		// ===== Client =====
 		clientController := controllers.NewClientController()
