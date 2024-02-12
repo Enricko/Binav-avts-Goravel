@@ -27,3 +27,32 @@ func HandleBadRequestError(ctx http.Context, err error) http.Response {
 		"status":http.StatusBadRequest,
 	})
 }
+// handleDBError handles database errors
+func HandleInternalServerError(ctx http.Context, err error) http.Response {
+	return ctx.Response().Json(http.StatusInternalServerError, http.Json{
+		"message": err.Error(),
+		"status":http.StatusInternalServerError,
+	})
+}
+
+// GenerateOTP generates a random one-time password of a specified length.
+func GenerateOTP(length int) (string, error) {
+	const charset = "0123456789"
+	otp := make([]byte, length)
+	max := big.NewInt(int64(len(charset)))
+
+	for i := range otp {
+		num, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		otp[i] = charset[num.Int64()]
+	}
+
+	return string(otp), nil
+}
+
+// VerifyOTP verifies if a given OTP matches the expected OTP.
+func VerifyOTP(expectedOTP, inputOTP string) bool {
+	return expectedOTP == inputOTP
+}

@@ -34,7 +34,8 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	if errors != nil {
 		return ctx.Response().Json(http.StatusBadRequest, http.Json{
 			"message": errors.One(),
-		})
+		"status":http.StatusOK,
+	})
 	}
 
 	// Password Hashing / Dcrypt
@@ -85,7 +86,8 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	}
 	// Return success response
 	return ctx.Response().Success().Json(http.Json{
-		"Hello": "Client created successfully.",
+		"message": "Client created successfully.",
+		"status":http.StatusOK,
 	})
 }
 

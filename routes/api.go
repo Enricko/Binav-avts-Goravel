@@ -14,13 +14,20 @@ func Api() {
 		// ===== Users =====
 		userController := controllers.NewUserController()
 		router.Post("/login", userController.Login)
-		router.Middleware(userMiddleware.Authorization()).Get("/user", userController.Show)
+		router.Middleware(userMiddleware.Authorization()).Group(func(router route.Router) {
+			router.Get("/user", userController.Show)
+			router.Get("/logout", userController.Logout)
+		})
+
+		// ===== Forget Password =====
+		router.Post("/forgot-password", userController.ForgotPassword)
+		router.Post("/check-code", userController.CheckCode)
 
 		// ===== Client =====
 		clientController := controllers.NewClientController()
 		// router.Middleware(userMiddleware.Authorization()).Group(func(router route.Router) {
 		router.Group(func(router route.Router) {
-			router.Post("/register_user", clientController.RegisterUser)
+			router.Post("/register-user", clientController.RegisterUser)
 		})
 	})
 	facades.Route().Fallback(func(ctx http.Context) http.Response {

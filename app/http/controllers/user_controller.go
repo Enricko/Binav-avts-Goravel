@@ -1,11 +1,14 @@
 package controllers
 
 import (
+	"fmt"
 	extensions "goravel/app"
 	"goravel/app/http/requests/user_request"
 	"goravel/app/models"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/contracts/mail"
 	"github.com/goravel/framework/facades"
 )
 
@@ -62,15 +65,16 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	if errors != nil {
 		return ctx.Response().Json(http.StatusBadRequest, http.Json{
 			"message": errors.One(),
+			"status":  http.StatusOK,
 		})
 	}
 
 	// Find the user by email
 	var existingUser models.User
-	if err := facades.Orm().Query().Model(&existingUser).Where("email = ?", request.Email).First(&existingUser); err != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": err.Error(),
-			"status":  http.StatusBadRequest,
+	if err := facades.Orm().Query().Model(&existingUser).Where("email = ?", request.Email).FirstOrFail(&existingUser); err != nil {
+		return ctx.Response().Json(http.StatusNotFound, http.Json{
+			"message": "Data not found.",
+			"status":  http.StatusNotFound,
 		})
 	}
 
@@ -96,4 +100,165 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 		"token":   token,
 		"status":  http.StatusAccepted,
 	})
+}
+func (r *UserController) Logout(ctx http.Context) http.Response {
+	header := ctx.Request().Header("Authorization", "")
+	_, err := facades.Auth().Parse(ctx, header)
+	if err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	if err := facades.Auth().Logout(ctx); err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"message": "Logout successfully.",
+		"status":  http.StatusOK,
+	})
+}
+
+func (r *UserController) ForgotPassword(ctx http.Context) http.Response {
+	var request user_request.ForgotUserRequest
+
+	errors, err := ctx.Request().ValidateRequest(&request)
+	if err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+	// Validate the request
+	if errors != nil {
+		return ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": errors.One(),
+			"status":  http.StatusOK,
+		})
+	}
+
+	var existingUser models.User
+	if err := facades.Orm().Query().Model(&existingUser).Where("email = ?", request.Email).FirstOrFail(&existingUser); err != nil {
+		return ctx.Response().Json(http.StatusNotFound, http.Json{
+			"message": "Data not found.",
+			"status":  http.StatusNotFound,
+		})
+	}
+	fmt.Printf("existingUser: %v\n")
+
+	otpCode, err := extensions.GenerateOTP(6)
+	if err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	var resetModel models.ResetCodePassword
+	if err := facades.Orm().Query().UpdateOrCreate(
+		&resetModel,
+		models.ResetCodePassword{
+			Email: request.Email,
+		},
+		models.ResetCodePassword{
+			Code: otpCode,
+		}); err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	if err := facades.Mail().To([]string{request.Email}).
+		Cc([]string{request.Email}).
+		Bcc([]string{request.Email}).
+		Content(mail.Content{Subject: "Subject", Html: MailOtpUI(existingUser.Name, otpCode)}).
+		Send(); err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+	return ctx.Response().Success().Json(http.Json{
+		"message": "Otp has been mailed." + otpCode,
+		"status":  http.StatusOK,
+	})
+}
+
+func (r *UserController) CheckCode(ctx http.Context) http.Response {
+	var request user_request.ForgotUserRequest
+
+	errors, err := ctx.Request().ValidateRequest(&request)
+	if err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+	// Validate the request
+	if errors != nil {
+		return ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": errors.One(),
+			"status":  http.StatusOK,
+		})
+	}
+
+	var existingOtp models.ResetCodePassword
+	if err := facades.Orm().Query().Model(&existingOtp).Where("email = ?", request.Email).FirstOrFail(&existingOtp); err != nil {
+		return ctx.Response().Json(http.StatusNotFound, http.Json{
+			"message": "Data not found.",
+			"status":  http.StatusNotFound,
+		})
+	}
+
+	if !extensions.VerifyOTP(existingOtp.Code, request.OtpCode) {
+		return ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": "OTP code invalid.",
+			"status":  http.StatusNotFound,
+		})
+	}
+
+	// Check if created_at is greater than 15 minutes from now
+	if time.Since(existingOtp.CreatedAt) > 1*time.Minute {
+		// Delete the record
+		if _, err := facades.Orm().Query().Where("email = ?", request.Email).Delete(&existingOtp); err != nil {
+			// Handle error deleting record
+			return extensions.HandleInternalServerError(ctx, err)
+		}
+		return ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": "OTP expired.",
+			"status":  http.StatusOK,
+		})
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"message": "OTP verification successful.",
+		"status":  http.StatusOK,
+	})
+}
+
+func MailOtpUI(name string, otpCode string) string {
+	fmt.Printf("otpCode: %v\n", otpCode)
+	return fmt.Sprintf(`<!DOCTYPE html>
+	<html lang="en">
+	
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta http-equiv="X-UA-Compatible" content="ie=edge">
+		<title>Binav AVTS</title>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+			integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+			integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous">
+		</script>
+	</head>
+	
+	<body>
+		<div class="card m-auto" style="width: 40rem; margin:auto">
+			<div style="border: 1px solid #868383; border-radius: 5px 5px 0px 0px; padding: 20px;">
+				<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSmlPQ2XMJ8hQT05TyZbN_hD_QXAOvjI-79c_b98A9h&s"
+					class="card-img-top" alt="logo">
+			</div>
+			<div class="container center" style="border: 1px solid #ccc; border-radius: 0px 0px 5px 5px; padding: 20px;">
+	
+				<div class="card-body">
+					<p>Hey <span class="w-900">%s</span><br></p>
+					<p>There was a request to change your password on Binav AVTS !!!<br></p>
+					<p style="color:red">If you did not make this request then please ignore this email.<br></p>
+					<p>Otherwise, Here the Verification Code: <h4>%s</h4><br></p>
+					<p>Thank you for choosing us. We are hopeful for your success and your growth!<br></p>
+					<p>---------<br></p>
+					<p>PT. Binav Maju Sejahtera<br>https://binav-avts.id</p>
+				</div>
+			</div>
+		</div>
+	</body>
+
+	</html>
+	`, name, otpCode)
 }
