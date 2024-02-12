@@ -34,14 +34,14 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	if errors != nil {
 		return ctx.Response().Json(http.StatusBadRequest, http.Json{
 			"message": errors.One(),
-		"status":http.StatusOK,
-	})
+			"status":  http.StatusOK,
+		})
 	}
 
 	// Password Hashing / Dcrypt
-	password, err := facades.Hash().Make(request.Password)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
+	password, shouldReturn, returnValue := extensions.PasswordHash(request.Password, ctx)
+	if shouldReturn {
+		return returnValue
 	}
 
 	// Generate random user and client IDs
@@ -87,7 +87,6 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Return success response
 	return ctx.Response().Success().Json(http.Json{
 		"message": "Client created successfully.",
-		"status":http.StatusOK,
+		"status":  http.StatusOK,
 	})
 }
-

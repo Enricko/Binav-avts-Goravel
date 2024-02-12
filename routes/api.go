@@ -22,6 +22,7 @@ func Api() {
 		// ===== Forget Password =====
 		router.Post("/forgot-password", userController.ForgotPassword)
 		router.Post("/check-code", userController.CheckCode)
+		router.Post("/reset-password", userController.ResetPassword)
 
 		// ===== Client =====
 		clientController := controllers.NewClientController()

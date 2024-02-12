@@ -6,8 +6,10 @@ import (
 )
 
 type ForgotUserRequest struct {
-	Email   string `form:"email" json:"email"`
-	OtpCode string `form:"otp_code" json:"otp_code"`
+	Email                string `form:"email" json:"email"`
+	OtpCode              string `form:"otp_code" json:"otp_code"`
+	Password             string `form:"password" json:"password"`
+	PasswordConfirmation string `form:"password_confirmation" json:"password_confirmation"`
 }
 
 func (r *ForgotUserRequest) Authorize(ctx http.Context) error {
@@ -16,8 +18,10 @@ func (r *ForgotUserRequest) Authorize(ctx http.Context) error {
 
 func (r *ForgotUserRequest) Rules(ctx http.Context) map[string]string {
 	return map[string]string{
-		"email":    "email|max_len:255|required_with:otp_code",
-		"otp_code": "string|max_len:255",
+		"email":                 "email|max_len:255|required_with:otp_code,password,password_confirmation",
+		"otp_code":              "string|max_len:255|required_with:password,password_confirmation",
+		"password":              "min_len:8|max_len:255|eq_field:password_confirmation",
+		"password_confirmation": "min_len:8|max_len:255|eq_field:password",
 	}
 }
 

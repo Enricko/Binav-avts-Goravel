@@ -188,37 +188,96 @@ func (r *UserController) CheckCode(ctx http.Context) http.Response {
 	}
 
 	var existingOtp models.ResetCodePassword
-	if err := facades.Orm().Query().Model(&existingOtp).Where("email = ?", request.Email).FirstOrFail(&existingOtp); err != nil {
-		return ctx.Response().Json(http.StatusNotFound, http.Json{
-			"message": "Data not found.",
-			"status":  http.StatusNotFound,
-		})
-	}
-
-	if !extensions.VerifyOTP(existingOtp.Code, request.OtpCode) {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": "OTP code invalid.",
-			"status":  http.StatusNotFound,
-		})
-	}
-
-	// Check if created_at is greater than 15 minutes from now
-	if time.Since(existingOtp.CreatedAt) > 1*time.Minute {
-		// Delete the record
-		if _, err := facades.Orm().Query().Where("email = ?", request.Email).Delete(&existingOtp); err != nil {
-			// Handle error deleting record
-			return extensions.HandleInternalServerError(ctx, err)
-		}
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": "OTP expired.",
-			"status":  http.StatusOK,
-		})
+	shouldReturn, returnValue := CheckOTPValidation(existingOtp, request, ctx)
+	if shouldReturn {
+		return returnValue
 	}
 
 	return ctx.Response().Success().Json(http.Json{
 		"message": "OTP verification successful.",
 		"status":  http.StatusOK,
 	})
+}
+
+func (r *UserController) ResetPassword(ctx http.Context) http.Response {
+	var request user_request.ForgotUserRequest
+
+	errors, err := ctx.Request().ValidateRequest(&request)
+	if err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+	// Validate the request
+	if errors != nil {
+		return ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": errors.One(),
+			"status":  http.StatusOK,
+		})
+	}
+
+	var existingOtp models.ResetCodePassword
+	shouldReturn, returnValue := CheckOTPValidation(existingOtp, request, ctx)
+	if shouldReturn {
+		return returnValue
+	}
+
+	// Password Hashing / Dcrypt
+	password, shouldReturn, returnValue := extensions.PasswordHash(request.Password, ctx)
+	if shouldReturn {
+		return returnValue
+	}
+
+	var existingUser models.User
+	if err := facades.Orm().
+		Query().
+		Model(&existingUser).
+		Where("email = ?", request.Email).FirstOrFail(&existingUser); err != nil {
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+	existingUser.Password = password
+	existingUser.PasswordString = existingUser.Name + request.Password + request.Email
+	if err := facades.Orm().
+		Query().
+		Save(existingUser); err != nil {
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+
+	if _, err := facades.Orm().Query().Where("email = ?", request.Email).Delete(&existingOtp); err != nil {
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+
+	return ctx.Response().Success().Json(http.Json{
+		"message": "Password reset successful.",
+		"status":  http.StatusOK,
+	})
+}
+
+func CheckOTPValidation(existingOtp models.ResetCodePassword, request user_request.ForgotUserRequest, ctx http.Context) (bool, http.Response) {
+	if err := facades.Orm().Query().Model(&existingOtp).Where("email = ?", request.Email).FirstOrFail(&existingOtp); err != nil {
+		return true, ctx.Response().Json(http.StatusNotFound, http.Json{
+			"message": "Data not found.",
+			"status":  http.StatusNotFound,
+		})
+	}
+
+	if !extensions.VerifyOTP(existingOtp.Code, request.OtpCode) {
+		return true, ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": "OTP code invalid.",
+			"status":  http.StatusNotFound,
+		})
+	}
+
+	if time.Since(existingOtp.CreatedAt) > 15*time.Minute {
+
+		if _, err := facades.Orm().Query().Where("email = ?", request.Email).Delete(&existingOtp); err != nil {
+
+			return true, extensions.HandleInternalServerError(ctx, err)
+		}
+		return true, ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": "OTP expired.",
+			"status":  http.StatusOK,
+		})
+	}
+	return false, nil
 }
 
 func MailOtpUI(name string, otpCode string) string {
