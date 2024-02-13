@@ -140,3 +140,37 @@ func (r *ClientController) Update(ctx http.Context) http.Response {
 		"status":  http.StatusOK,
 	})
 }
+func (r *ClientController) Delete(ctx http.Context) http.Response {
+	var existingClient models.Client
+
+	// Begin openning DB Transaction
+	ts, err := facades.Orm().Query().Begin()
+	if err != nil {
+		ts.Rollback()
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	if err := ts.FindOrFail(&existingClient, "id_client=?", ctx.Request().Input("id_client", "")); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+	if _, err := ts.Delete(&existingClient); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+	if _, err := ts.Delete(&models.User{}, "id_user=?", existingClient.IdUser); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+
+	// Commit transaction
+	if err := ts.Commit(); err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	// Return success response
+	return ctx.Response().Success().Json(http.Json{
+		"message": "Client deleted successfully.",
+		"status":  http.StatusOK,
+	})
+}

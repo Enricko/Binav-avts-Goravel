@@ -30,6 +30,7 @@ func Api() {
 		router.Group(func(router route.Router) {
 			router.Post("/register-user", clientController.RegisterUser)
 			router.Put("/update-client/{id_client}", clientController.Update)
+			router.Delete("/delete-client/{id_client}", clientController.Delete)
 		})
 	})
 	facades.Route().Fallback(func(ctx http.Context) http.Response {
