@@ -2,8 +2,10 @@ package controllers
 
 import (
 	extensions "goravel/app"
+	"goravel/app/http/requests/client_request"
 	"goravel/app/http/requests/user_request"
 	"goravel/app/models"
+	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
@@ -27,15 +29,9 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Parse and validate the request
 	var request user_request.RegisterUserPostRequest
 
-	errors, err := ctx.Request().ValidateRequest(&request)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
-	}
-	if errors != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": errors.One(),
-			"status":  http.StatusOK,
-		})
+	// Validate the request
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
 	}
 
 	// Password Hashing / Dcrypt
@@ -60,8 +56,8 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Create the client model
 	createClient := models.Client{
 		IdClient: clientID,
-		IdUser:   createUser.IdUser,
-		Status:   request.Status,
+		// IdUser:   createUser.IdUser,
+		Status: request.Status,
 	}
 
 	// Begin openning DB Transaction
@@ -87,6 +83,60 @@ func (r *ClientController) RegisterUser(ctx http.Context) http.Response {
 	// Return success response
 	return ctx.Response().Success().Json(http.Json{
 		"message": "Client created successfully.",
+		"status":  http.StatusOK,
+	})
+}
+
+func (r *ClientController) Update(ctx http.Context) http.Response {
+	var request client_request.UpdateClientRequest
+
+	// Validate the request
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
+	}
+
+	var existingClient models.Client
+
+	// Begin openning DB Transaction
+	ts, err := facades.Orm().Query().Begin()
+	if err != nil {
+		ts.Rollback()
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	if err := ts.With("User").Where("id_client=?", ctx.Request().Input("id_client", "")).FirstOrFail(&existingClient); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+
+	passwordString := existingClient.User.PasswordString
+	passwordString = strings.Replace(passwordString, existingClient.User.Name, "", 1)
+	passwordString = strings.Replace(passwordString, existingClient.User.Email, "", 1)
+
+	if _, err := ts.Where("id_client=?", ctx.Request().Input("id_client", "")).
+		Update(&models.Client{
+			Status: request.Status,
+		}); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+	if _, err := ts.Where("id_user=?", existingClient.IdUser).
+		Update(&models.User{
+			Name:           request.Name,
+			Email:          request.Email,
+			PasswordString: request.Name + passwordString + request.Email,
+		}); err != nil {
+		ts.Rollback()
+		return extensions.HandleInternalServerError(ctx, err)
+	}
+	// Commit transaction
+	if err := ts.Commit(); err != nil {
+		return extensions.HandleBadRequestError(ctx, err)
+	}
+
+	// Return success response
+	return ctx.Response().Success().Json(http.Json{
+		"message": "Client updated successfully.",
 		"status":  http.StatusOK,
 	})
 }

@@ -57,16 +57,9 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	// Parse the incoming request
 	var request user_request.LoginUserRequest
 
-	errors, err := ctx.Request().ValidateRequest(&request)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
-	}
 	// Validate the request
-	if errors != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": errors.One(),
-			"status":  http.StatusOK,
-		})
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
 	}
 
 	// Find the user by email
@@ -121,16 +114,9 @@ func (r *UserController) Logout(ctx http.Context) http.Response {
 func (r *UserController) ForgotPassword(ctx http.Context) http.Response {
 	var request user_request.ForgotUserRequest
 
-	errors, err := ctx.Request().ValidateRequest(&request)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
-	}
 	// Validate the request
-	if errors != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": errors.One(),
-			"status":  http.StatusOK,
-		})
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
 	}
 
 	var existingUser models.User
@@ -175,16 +161,9 @@ func (r *UserController) ForgotPassword(ctx http.Context) http.Response {
 func (r *UserController) CheckCode(ctx http.Context) http.Response {
 	var request user_request.ForgotUserRequest
 
-	errors, err := ctx.Request().ValidateRequest(&request)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
-	}
 	// Validate the request
-	if errors != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": errors.One(),
-			"status":  http.StatusOK,
-		})
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
 	}
 
 	var existingOtp models.ResetCodePassword
@@ -202,16 +181,9 @@ func (r *UserController) CheckCode(ctx http.Context) http.Response {
 func (r *UserController) ResetPassword(ctx http.Context) http.Response {
 	var request user_request.ForgotUserRequest
 
-	errors, err := ctx.Request().ValidateRequest(&request)
-	if err != nil {
-		return extensions.HandleBadRequestError(ctx, err)
-	}
 	// Validate the request
-	if errors != nil {
-		return ctx.Response().Json(http.StatusBadRequest, http.Json{
-			"message": errors.One(),
-			"status":  http.StatusOK,
-		})
+	if shouldReturn, returnValue := extensions.RequestValidation(ctx, &request); shouldReturn {
+		return returnValue
 	}
 
 	var existingOtp models.ResetCodePassword
@@ -237,7 +209,7 @@ func (r *UserController) ResetPassword(ctx http.Context) http.Response {
 	existingUser.PasswordString = existingUser.Name + request.Password + request.Email
 	if err := facades.Orm().
 		Query().
-		Save(existingUser); err != nil {
+		Save(&existingUser); err != nil {
 		return extensions.HandleInternalServerError(ctx, err)
 	}
 

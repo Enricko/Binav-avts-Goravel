@@ -8,6 +8,21 @@ import (
 	"github.com/goravel/framework/facades"
 )
 
+func RequestValidation(ctx http.Context, request http.FormRequest) (bool, http.Response) {
+	errors, err := ctx.Request().ValidateRequest(request)
+	if err != nil {
+		return true, HandleBadRequestError(ctx, err)
+	}
+
+	if errors != nil {
+		return true, ctx.Response().Json(http.StatusBadRequest, http.Json{
+			"message": errors.One(),
+			"status":  http.StatusBadRequest,
+		})
+	}
+	return false, nil
+}
+
 func GenerateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	var result string

@@ -29,6 +29,7 @@ func Api() {
 		// router.Middleware(userMiddleware.Authorization()).Group(func(router route.Router) {
 		router.Group(func(router route.Router) {
 			router.Post("/register-user", clientController.RegisterUser)
+			router.Put("/update-client/{id_client}", clientController.Update)
 		})
 	})
 	facades.Route().Fallback(func(ctx http.Context) http.Response {
